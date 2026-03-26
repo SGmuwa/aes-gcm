@@ -111,10 +111,10 @@ async function deriveKey(keyStr, saltStr, iterations) {
 }
 
 function validateIterations(iterations) {
-    const parsedIterations = parseInt(iterations);
-    if (isNaN(parsedIterations) || parsedIterations < 1000) {
+    const parsedIterations = parseInt(iterations, 10);
+    if (isNaN(parsedIterations) || parsedIterations < 1) {
         console.error("Error: Invalid number of iterations.");
-        document.getElementById("output").value = "Error: Invalid number of iterations.";
+        document.getElementById("output").value = "Error: Invalid number of iterations (minimum 1).";
         return false;
     }
     return true;
