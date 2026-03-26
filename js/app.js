@@ -1,10 +1,89 @@
 const saltInput = document.getElementById("iv-input");
 const saltCounter = document.getElementById("salt-counter");
 
+const LOCATION_PLACER_LEN = 200;
+const LOCATION_PLACER_STORAGE_KEY = "aes-gcm-locationplacer";
+
+function randomLocationPlacer() {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const buf = new Uint8Array(LOCATION_PLACER_LEN);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+function credentialParamsFromHash() {
+    const raw = location.hash;
+    if (!raw || raw === "#") {
+        return new URLSearchParams();
+    }
+    return new URLSearchParams(raw.startsWith("#") ? raw.slice(1) : raw);
+}
+
+function getOrCreateLocationPlacer() {
+    const params = credentialParamsFromHash();
+    const fromUrl = params.get("locationplacer");
+    if (fromUrl && fromUrl.length === LOCATION_PLACER_LEN) {
+        sessionStorage.setItem(LOCATION_PLACER_STORAGE_KEY, fromUrl);
+        return fromUrl;
+    }
+    const stored = sessionStorage.getItem(LOCATION_PLACER_STORAGE_KEY);
+    if (stored && stored.length === LOCATION_PLACER_LEN) {
+        return stored;
+    }
+    const fresh = randomLocationPlacer();
+    sessionStorage.setItem(LOCATION_PLACER_STORAGE_KEY, fresh);
+    return fresh;
+}
+
+function buildCredentialHash(locationPlacer, keyStr, saltStr, iterationsStr) {
+    const parts = [
+        "locationplacer=" + encodeURIComponent(locationPlacer),
+        "key=" + encodeURIComponent(keyStr),
+        "salt=" + encodeURIComponent(saltStr),
+        "iterations=" + encodeURIComponent(iterationsStr),
+    ];
+    return parts.join("&");
+}
+
+function applyCredentialParamsFromUrl() {
+    const params = credentialParamsFromHash();
+    const key = params.get("key");
+    const salt = params.get("salt");
+    const iterations = params.get("iterations");
+    if (key !== null) {
+        document.getElementById("key-input").value = key;
+    }
+    if (salt !== null) {
+        saltInput.value = salt;
+        saltCounter.textContent = `(${salt.length}/12)`;
+    }
+    if (iterations !== null) {
+        document.getElementById("iterations-input").value = iterations;
+    }
+}
+
+let syncUrlDebounceTimer;
+
+function syncCredentialParamsToUrl() {
+    const locationPlacer = getOrCreateLocationPlacer();
+    const keyStr = document.getElementById("key-input").value;
+    const saltStr = saltInput.value;
+    const iterationsStr = document.getElementById("iterations-input").value;
+    const fragment = buildCredentialHash(locationPlacer, keyStr, saltStr, iterationsStr);
+    const url = location.pathname + location.search + "#" + fragment;
+    history.replaceState(null, "", url);
+}
+
+function scheduleSyncCredentialParamsToUrl() {
+    clearTimeout(syncUrlDebounceTimer);
+    syncUrlDebounceTimer = setTimeout(syncCredentialParamsToUrl, 400);
+}
+
 saltInput.addEventListener("input", () => {
     const saltValue = saltInput.value;
     const saltLength = saltValue.length;
     saltCounter.textContent = `(${saltLength}/12)`;
+    scheduleSyncCredentialParamsToUrl();
 });
 
 function getSelectedFormat() {
@@ -198,3 +277,9 @@ function copyResult() {
     container.appendChild(messageField);
     setTimeout(() => container.removeChild(messageField), 3000);
 }
+
+document.getElementById("key-input").addEventListener("input", scheduleSyncCredentialParamsToUrl);
+document.getElementById("iterations-input").addEventListener("input", scheduleSyncCredentialParamsToUrl);
+
+applyCredentialParamsFromUrl();
+syncCredentialParamsToUrl();
