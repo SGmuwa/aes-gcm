@@ -35,12 +35,13 @@ function getOrCreateLocationPlacer() {
     return fresh;
 }
 
-function buildCredentialHash(locationPlacer, keyStr, saltStr, iterationsStr) {
+function buildCredentialHash(locationPlacer, keyStr, saltStr, iterationsStr, formatStr) {
     const parts = [
         "locationplacer=" + encodeURIComponent(locationPlacer),
         "key=" + encodeURIComponent(keyStr),
         "salt=" + encodeURIComponent(saltStr),
         "iterations=" + encodeURIComponent(iterationsStr),
+        "format=" + encodeURIComponent(formatStr),
     ];
     return parts.join("&");
 }
@@ -60,6 +61,13 @@ function applyCredentialParamsFromUrl() {
     if (iterations !== null) {
         document.getElementById("iterations-input").value = iterations;
     }
+    const format = params.get("format");
+    if (format === "hex" || format === "base64") {
+        const radio = document.querySelector(`input[name="format"][value="${format}"]`);
+        if (radio) {
+            radio.checked = true;
+        }
+    }
 }
 
 let syncUrlDebounceTimer;
@@ -69,7 +77,8 @@ function syncCredentialParamsToUrl() {
     const keyStr = document.getElementById("key-input").value;
     const saltStr = saltInput.value;
     const iterationsStr = document.getElementById("iterations-input").value;
-    const fragment = buildCredentialHash(locationPlacer, keyStr, saltStr, iterationsStr);
+    const formatStr = getSelectedFormat();
+    const fragment = buildCredentialHash(locationPlacer, keyStr, saltStr, iterationsStr, formatStr);
     const url = location.pathname + location.search + "#" + fragment;
     history.replaceState(null, "", url);
 }
@@ -280,6 +289,9 @@ function copyResult() {
 
 document.getElementById("key-input").addEventListener("input", scheduleSyncCredentialParamsToUrl);
 document.getElementById("iterations-input").addEventListener("input", scheduleSyncCredentialParamsToUrl);
+document.querySelectorAll('input[name="format"]').forEach((el) => {
+    el.addEventListener("change", scheduleSyncCredentialParamsToUrl);
+});
 
 applyCredentialParamsFromUrl();
 syncCredentialParamsToUrl();
